@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="a504df0c-792e-4d2f-b9f6-1eed49572484" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+		<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="434c90bf-576d-4592-9bd6-08a05b12f0f5">
+		<http:request-connection protocol="HTTPS" host="${Your_secret_server_instance}"/>
+	</http:request-config>
+	<flow name="authTokenFlow" doc:id="7fa76e85-9710-49d0-bbd0-ffbd74abec63" >
+		<http:listener doc:name="Listener" doc:id="7683ff57-9277-4f2a-9a8a-4b81a74d5186" config-ref="HTTP_Listener_config" path="/RestCall"/>
+		<http:request method="POST" doc:name="HTTP request to get the Token" doc:id="98b8f450-bc29-4ce4-9809-b1f17a91f700" config-ref="HTTP_Request_configuration" outputMimeType="application/x-www-form-urlencoded" path="/oauth2/token">
+			<http:body ><![CDATA[grant_type=password&username=${your_username}&password=${your_password}]]></http:body>
+		</http:request>
+		<ee:transform doc:name="Convert payload to String" doc:id="f36ec4d2-8334-409b-9a41-05ca99627538">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+write(payload, "application/java")]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<set-variable value='#[payload splitBy(":")]' doc:name="Split payload by :" doc:id="4d751ff7-2e2b-4df0-aee1-8ebde5443654" variableName="string1"/>
+		<set-variable value='#["Bearer" ++ " " ++ vars.string1[1][1 to sizeOf(vars.string1[1]) - 15]]' doc:name="Token" doc:id="13ef56dd-dc5b-4074-b62a-b1acaa7a0c30" variableName="extract1"/>
+		<http:request method="GET" doc:name="HTTP request to get the list of Users" doc:id="c5ae97bf-0362-4022-87f5-91781ece6189" url="http://${Your_secret_server_instance}/api/v1/users/current">
+			<http:headers ><![CDATA[#[output application/java
+---
+{ 
+	Authorization : vars.extract1
+}]]]></http:headers>
+		</http:request>
+		<ee:transform doc:name="Output" doc:id="89f99206-1c2a-4284-9de7-6b80c7d3bf29" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>

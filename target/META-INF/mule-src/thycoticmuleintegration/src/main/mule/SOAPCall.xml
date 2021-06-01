@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:wsc="http://www.mulesoft.org/schema/mule/wsc"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/wsc http://www.mulesoft.org/schema/mule/wsc/current/mule-wsc.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:request-config name="HTTP_Request_configuration2" doc:name="HTTP Request configuration" doc:id="857c6d70-dcaa-4604-9681-b11a12c08949" >
+		<http:request-connection host="${Your_secret_server_instance}" port="80" />
+	</http:request-config>
+	<flow name="webserviceFlow" doc:id="e273f0e7-9ed2-45e4-baba-ae7cb281e48e" >
+		<http:listener doc:name="Listener" doc:id="ce021375-e01e-4d9d-8045-2471a5fbb9ff" config-ref="HTTP_Listener_config" path="/SoapCall"/>
+		<parse-template doc:name='Build the Input for "Authenticate" SOAP call' doc:id="83e3c749-22ec-4a7f-b58a-87962eb04b1d" >
+			<content >&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
+&lt;soap12:Envelope xmlns:xsi=&quot;http://www.w3.org/2001/XMLSchema-instance&quot; xmlns:xsd=&quot;http://www.w3.org/2001/XMLSchema&quot; xmlns:soap12=&quot;http://www.w3.org/2003/05/soap-envelope&quot;&gt;
+  &lt;soap12:Body&gt;
+    &lt;Authenticate xmlns=&quot;urn:thesecretserver.com&quot;&gt;
+      &lt;username&gt;${your_username}&lt;/username&gt;
+      &lt;password&gt;${your_password}&lt;/password&gt;
+      &lt;organization&gt;&lt;/organization&gt;
+      &lt;domain&gt;&lt;/domain&gt;
+    &lt;/Authenticate&gt;
+  &lt;/soap12:Body&gt;
+&lt;/soap12:Envelope&gt;</content>
+		</parse-template>
+		<http:request method="POST" doc:name="Authenticate request" doc:id="2916e869-e3b9-4fdc-b9d6-a71dc56cce64" config-ref="HTTP_Request_configuration2" path="/webservices/SSWebservice.asmx">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"SOAPAction" : "urn:thesecretserver.com/Authenticate",
+	"Content-Type" : "text/xml; charset=utf-8"
+}]]]></http:headers>
+		</http:request>
+		<ee:transform doc:name="Transform Payload to String" doc:id="df4f2236-5c1e-4705-ad39-249e5b8c4fd0" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+write(payload, "application/java")]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<set-variable value='#[payload splitBy(",")]' doc:name="Split Payload by ," doc:id="83376a1f-9667-4984-89a0-7d95abe4affe" variableName="string1"/>
+		<parse-template doc:name='Build payload for "GetTokenIsValid" SOAP call' doc:id="c8522381-1e11-4d66-a6ea-577b318c8bae" >
+			<content >&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
+&lt;soap:Envelope xmlns:xsi=&quot;http://www.w3.org/2001/XMLSchema-instance&quot; xmlns:xsd=&quot;http://www.w3.org/2001/XMLSchema&quot; xmlns:soap=&quot;http://schemas.xmlsoap.org/soap/envelope/&quot;&gt;
+  &lt;soap:Body&gt;
+    &lt;GetTokenIsValid xmlns=&quot;urn:thesecretserver.com&quot;&gt;
+      &lt;token&gt;#[vars.string1[1][7 to sizeOf(vars.string1[1]) - 6]]&lt;/token&gt;
+    &lt;/GetTokenIsValid&gt;
+  &lt;/soap:Body&gt;
+&lt;/soap:Envelope&gt;</content>
+		</parse-template>
+		<http:request method="POST" doc:name="Token is Valid request" doc:id="450a1272-7883-4155-b54d-816785ab8818" config-ref="HTTP_Request_configuration2" path="/webservices/SSWebservice.asmx">
+			<http:headers><![CDATA[#[output application/java
+---
+{
+	"SOAPAction" : "urn:thesecretserver.com/GetTokenIsValid",
+	"Content-Type" : "text/xml; charset=utf-8"
+}]]]></http:headers>
+		</http:request>
+		<ee:transform doc:name="Output" doc:id="073227c3-fee9-48b0-aa7e-c09be20a4b9d" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>
